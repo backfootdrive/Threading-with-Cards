@@ -46,7 +46,7 @@ To run the test suite, you will need to open the project in VSCode and run the t
 
 ## Authors
 
-- Kamran Haque
+- [Kamran Haque](https://github.com/backfootdrive)
 - Tyler Allen
 
 ## License
