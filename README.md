@@ -44,6 +44,11 @@ To run the test suite, you will need to open the project in VSCode and run the t
 
 ![Example](/res/Example.PNG)
 
+## Authors
+
+- Kamran Haque
+- Tyler Allen
+
 ## License
 
 [@MIT](https://github.com/backfootdrive/Threading-with-Cards/blob/main/LICENSE.md)
