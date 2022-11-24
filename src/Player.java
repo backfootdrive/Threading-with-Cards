@@ -1,116 +1,175 @@
+
+
 import java.util.ArrayList;
+
 import java.io.File;
 import java.io.FileWriter;   // Import the FileWriter class
 import java.io.IOException;  // Import the IOException class to handle errors
 
-public class Player extends Thread{
-    private static ArrayList<Player> allPlayers = new ArrayList<Player>();
-
+/**
+ * A Runnable class that when run, draws and discards cards from the associated decks until their hand
+ * has 4 cards of the same value.
+ * 
+ * @author Kamran Haque, Tyler Allen
+ * @version 1.0
+ * 
+ */
+public class Player implements Runnable{
+	
+	// instance attributes
     private int id;
+    private CardGame game;
     private CardDeck leftDeck;
     private CardDeck rightDeck;
     private volatile ArrayList<Card> hand;
-    private volatile boolean done = false;
-    private static int idCounter = 1;
     private FileWriter writer;
-
-    public static ArrayList<Player> getAllPlayers () {return allPlayers;}
-
-    public Player (CardDeck left, ArrayList<Card> hand, CardDeck right) {
-        this.id = idCounter++;
+    
+    /**
+     * Gets the Id of player.
+     * 
+     * @return The Id of the player.
+     */
+    public int getId() {return id;}
+    
+    /**
+     * Class constructor for Player class
+     * 
+     * @param id An integer value.
+     * @param left The CardDeck to draw cards from.
+     * @param hand An ArrayList of Card objects.
+     * @param right The CardDeck to discard cards to.
+     * @param game an instance of CardGame.
+     */
+    public Player (int id, CardDeck left, ArrayList<Card> hand, CardDeck right, CardGame game) {
+        this.id = id;
         this.leftDeck = left;
         this.rightDeck = right;
         this.hand = hand;
-        allPlayers.add(this);
-
-        try {
-            File myObj = new File("player"+id+"_output.txt");
-            if (myObj.createNewFile()) {
-                System.out.println("File created: " + myObj.getName());
-            } else {
-                System.out.println("Ouptut file already exists.");
-            }
-        } catch (IOException e) {
-            System.out.println("An error occurred.");
-            e.printStackTrace();
-        }
-
-        String initialHand = "player " + id + " initial hand ";
+        this.game = game;
+        
+        // creates a string of the starting hand
+        String initialHand = "player " + id + " initial hand";
         for (Card card:hand) {
-            initialHand += card.getValue() + " ";
+            initialHand += " " + card.getValue();
         }
 
         try {
-            writer = new FileWriter("player"+id+"_output.txt");
+        	// creates a new file if one does not already exist
+            File newFile = new File("./gameOutputs/player"+id+"_output.txt");
+            if (newFile.createNewFile()) {
+                System.out.println("File created: " + newFile.getName());
+            } else {
+                // System.out.println("Ouptut file already exists.");
+            }
+            
+            // outputs the initial hand to file and console
+            System.out.println(initialHand);
+            writer = new FileWriter("./gameOutputs/player"+id+"_output.txt");
             writer.write(initialHand+"\n");
         } catch (IOException e) {
             System.out.println("An error occurred.");
             e.printStackTrace();
         }
     }
-
-    public synchronized void drawNewCard() {
-        if (leftDeck.isEmpty()) {
-            return;
+    
+    /**
+     * A method that discards a card to the right deck and draws a new one from the left deck.
+     * 
+     * @return True if the method succeeded.
+     */
+    public synchronized boolean drawNewCard() {
+    	// checks if the left deck is empty
+        while (leftDeck.isEmpty()){
+        	// interrupts the current thread if another has finished
+            if (Thread.currentThread().isInterrupted()){return false;}
         }
-
-        for (int i=0; i < hand.size(); i++) {
-            if (hand.get(i).getValue() != id) {
-                try {
-                    writer.write("Player "+id+" discards a "+hand.get(i).getValue()+" to deck "+rightDeck.getId()+"\n");
-                    System.out.println("Player "+id+" discards a "+hand.get(i).getValue()+" to deck "+rightDeck.getId());
-                } catch (IOException e) {
-                    System.out.println("write failed");
-                    e.printStackTrace();
-                }
-                rightDeck.addToDeck(hand.remove(i));
-                break;
-            }
-        }
-
-        hand.add(leftDeck.removeFromDeck());
         try {
-            writer.write("Player "+id+" draws "+hand.get((hand.size())-1).getValue()+" from deck "+leftDeck.getId()+"\n");
-            System.out.println("Player "+id+" draws "+hand.get((hand.size())-1).getValue()+" from deck "+leftDeck.getId());
-        } catch (IOException e) {
-            System.out.println("write failed");
-            e.printStackTrace();
-        }
+        	for (int i=0; i < hand.size(); i++) {
+            	if (hand.get(i).getValue() != id) {
+            		// discards a card from hand
+                	Card oldCard = hand.get(i);
+                	rightDeck.addToDeck(hand.remove(i));
+                	// draws a card to hand
+                	Card newCard = leftDeck.removeFromDeck();
+                	hand.add(newCard);
+                	
+                	// output the card discarded to file and console
+                	writer.write("player "+id+" discards a "+oldCard.getValue()+" to deck "+rightDeck.getId()+"\n");
+                	System.out.println("player "+id+" discards a "+oldCard.getValue()+" to deck "+rightDeck.getId());
+                	// outputs the card drawn to file and console
+                	writer.write("player "+id+" draws "+newCard.getValue()+" from deck "+leftDeck.getId()+"\n");
+                	System.out.println("player "+id+" draws "+newCard.getValue()+" from deck "+leftDeck.getId());
+                	
+                	// outputs the current hand
+                	String currentHand = "player " + id + " current hand";
+                	for (Card card:hand) {currentHand += " " + card.getValue();}
+                	writer.write(currentHand+"\n");
+                	break;
+            	}
+        	}
+    	} catch (IOException e) {
+    		System.out.println("write failed!");
+    		e.printStackTrace();
+    	}
+        return true;
     }
-
+    
+    /**
+     * Checks if the player has won.
+     * 
+     * @return True if hand has 4 cards of the same value.
+     */
+    public boolean checkWin() {
+    	int firstValue = hand.get(0).getValue();
+    	// checks if all Cards in hand match the value of first card
+    	if (hand.stream().allMatch(x -> x.getValue() == firstValue)) {
+    		// notifies the game instance a player has won
+            game.notifyAllFinished(id);
+            return true;
+    	}
+    	return false;
+    }
+    
+    /**
+     * The run method, checks if player has won, draws new card if not.
+     */
     public void run () {
-        while (!done){
-            int firstValue = hand.get(0).getValue();
-            if (hand.stream().allMatch(x -> x.getValue() == firstValue)) {
-                allPlayers.forEach((player) -> player.notifyFinished(id));
-            }
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            if (done == false) {
-                drawNewCard();
-            }
-        }
-        String finalHand = "player " + id + " final hand ";
-        for (Card card:hand) {
-            finalHand += card.getValue() + " ";
-        }
-        try {
-            writer.write(finalHand);
-            writer.close();
-        } catch (IOException e) {
-            System.out.println("failed to close file");
+    	// checks if thread has been interrupted
+        while (!Thread.currentThread().isInterrupted()){
+        	if (checkWin()) {
+        		// if thread has won, interrupt itself
+                Thread.currentThread().interrupt();
+        	} else {
+        		// draw a new card
+        		drawNewCard();
+        	}
         }
     }
-
-    public void notifyFinished(int idWinner) {
-        done = true;
-        try {
-            writer.write("Player "+idWinner+" has informed player "+id+" that player "+idWinner+" has won\n");
-        } catch (IOException e) {
-            System.out.println("write failed");
+    
+    /**
+     * Prints the players final hand to file and console and exits.
+     * 
+     * @param idWinner The Id of the winning player.
+     */
+    public synchronized void notifyFinished(int idWinner){
+        try{
+            if (idWinner != id) {
+                writer.write("player "+idWinner+" has informed player "+id+" that player "+idWinner+" has won\n");
+            } else {
+                writer.write("player "+id+" wins\n");
+                System.out.println("player "+id+" wins");
+            }
+            // outputs final hand to file and console
+            String finalHand = "player " + id + " final hand";
+            for (Card card:hand) {
+                finalHand += " " + card.getValue();
+            }
+            System.out.println(finalHand);
+            writer.write("player "+id+" exits\n");
+            writer.write(finalHand+"\n");
+            writer.close();
+        } catch (IOException e){
+            System.out.println("write failed!");
             e.printStackTrace();
         }
     }
